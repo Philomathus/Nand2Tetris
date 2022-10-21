@@ -1,7 +1,6 @@
 package com.nand2tetris.assembler;
 
 import java.io.*;
-import java.util.IllegalFormatException;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.regex.Matcher;
@@ -10,9 +9,14 @@ import java.util.stream.Collectors;
 
 public class ParserV1 implements Parser {
 
-    private final Code code;
-    private String currentCommmand;
-    private String nextCommand;
+    private final static String SYMBOL_PATTERN = "[a-zA-Z_.$:][a-zA-Z_.$:0-9]*";
+
+    private Queue<String> commandsQueue;
+    private CommandType currentCommandType;
+    private String symbol;
+    private String dest;
+    private String comp;
+    private String jump;
 
     public ParserV1(String fileName) throws FileNotFoundException {
 
@@ -20,10 +24,9 @@ public class ParserV1 implements Parser {
             throw new RuntimeException();
         }
 
-        BufferedReader bufferedReader = new BufferedReader(new FileReader(fileName));
-
         //causes significant overhead as the file gets larger
-        commandsQueue = bufferedReader.lines()
+        commandsQueue = new BufferedReader(new FileReader(fileName))
+            .lines()
             .map(line -> {
 
                 //remove comments
@@ -39,56 +42,74 @@ public class ParserV1 implements Parser {
             .filter(line -> !line.isEmpty())
             .collect(Collectors.toCollection(LinkedList<String>::new));
 
-        code = new CodeV1();
     }
 
     @Override
     public boolean hasMoreCommands() {
-        return commandsQueue.isEmpty();
+        return !commandsQueue.isEmpty();
     }
 
     @Override
     public void advance() {
 
-        //advance and parse
-        //determine command type
-        commandsQueue.poll();
+        currentCommandType = null;
+        symbol = null;
+        dest = null;
+        jump = null;
+        comp = null;
+
+        String currentCommand = commandsQueue.poll();
+
+        Pattern aPattern = Pattern.compile("@(" + SYMBOL_PATTERN + ")");
+        Matcher aMatcher = aPattern.matcher(currentCommand);
+        if(aMatcher.matches()) {
+            symbol = aMatcher.group();
+            currentCommandType = CommandType.A_COMMAND;
+            return;
+        }
+
+        Pattern lPattern = Pattern.compile("\\(("+ SYMBOL_PATTERN +")\\)");
+        Matcher lMatcher = lPattern.matcher(currentCommand);
+        if(lMatcher.matches()) {
+            symbol = lMatcher.group();
+            currentCommandType = CommandType.L_COMMAND;
+            return;
+        }
+
+        Pattern cPattern = Pattern.compile("((?<dest>[AMD]{3})=)?(?<comp>[-+!&|01AMD]{1,3})(;(?<jump>[JMPLENTGQ]{3}))?");
+        Matcher cMatcher = cPattern.matcher(currentCommand);
+        if(cMatcher.matches()) {
+            dest = cMatcher.group("dest");
+            comp = cMatcher.group("comp");
+            jump = cMatcher.group("jump");
+            currentCommandType = CommandType.C_COMMAND;
+        }
+
     }
 
     @Override
     public CommandType commandType() {
-
-        if(commandsQueue.peek().startsWith("@")) {
-            return CommandType.A_COMMAND;
-        }
-
-        if(commandsQueue.peek().startsWith("(")) {
-
-        }
-
-        return null;
+        return currentCommandType;
     }
 
     @Override
     public String symbol() {
-        return null;
+        return symbol;
     }
 
     @Override
     public String dest() {
-        Pattern pattern = Pattern.compile("(?:(.+?)=)?(.+?)(?:;([JEQGLTNMP]{3}))?");
-
-        Matcher matcher = pattern.matcher(commandsQueue.peek());
-        return code.dest();
+        return dest;
     }
 
     @Override
     public String comp() {
-        return null;
+        return comp;
     }
 
     @Override
     public String jump() {
-        return null;
+        return jump;
     }
+
 }

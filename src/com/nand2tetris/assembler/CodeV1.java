@@ -26,7 +26,6 @@ public class CodeV1 implements Code {
 
     @Override
     public String comp(String mnemonic) {
-
         switch(mnemonic) {
             case "0":
                 return "0101010";
